@@ -1,0 +1,44 @@
+# Операционные системы
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Среды разработки (IntelliJ IDEA, VS Code)
+.idea/
+*.iml
+out/
+.vscode/
+*.swp
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Java / Maven
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+*.log
+hs_err_pid*
+
+# Локальные настройки и пароли к БД
+.env
+*.env.local
+
+# Временные файлы Word и LibreOffice (появляются, пока отчёт открыт)
+~$*
+.~lock.*#
+*.tmp
+
+# Архивы для сдачи в СДО
+*.zip

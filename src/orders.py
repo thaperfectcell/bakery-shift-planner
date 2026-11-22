@@ -1,5 +1,7 @@
 """Операция «Свести заявки по изделиям»."""
-from datetime import datetime
+from datetime import datetime, time, timedelta
+
+ORDER_CUTOFF = time(12, 0)   # окончание приёма заявок накануне дня отгрузки
 
 
 def order_deadline(order, points):
@@ -22,6 +24,10 @@ def check_order(order, items, products, points):
             errors.append(f"неизвестное изделие {item['product_id']}")
         elif item["quantity"] <= 0:
             errors.append(f"неположительное количество изделия {item['product_id']}")
+    cutoff = datetime.combine(order["ship_date"] - timedelta(days=1), ORDER_CUTOFF)
+    if order["received_at"] > cutoff:
+        errors.append(f"заявка поступила после окончания приёма "
+                      f"({ORDER_CUTOFF:%H:%M} накануне отгрузки)")
     return errors
 
 

@@ -17,26 +17,80 @@ public final class CsvTable {
 
     private CsvTable() { }
 
-    /** Читает файл и возвращает строки как словари «столбец - значение». */
+    /**
+     * Читает файл и возвращает строки как словари «столбец - значение». Поддерживаются
+     * значения в кавычках с разделителем, удвоенными кавычками и переводами строк внутри,
+     * как в модуле csv Python и в методе {@link #write}. Пустые строки пропускаются.
+     */
     public static List<Map<String, String>> read(Path path) throws IOException {
-        List<String> lines = Files.readAllLines(path, StandardCharsets.UTF_8);
+        String text = Files.readString(path, StandardCharsets.UTF_8);
+        if (text.startsWith(BOM)) {
+            text = text.substring(BOM.length());
+        }
+        List<List<String>> records = parse(text);
         List<Map<String, String>> rows = new ArrayList<>();
-        if (lines.isEmpty()) {
+        if (records.isEmpty()) {
             return rows;
         }
-        String[] header = lines.getFirst().replace(BOM, "").split(String.valueOf(DELIMITER), -1);
-        for (String line : lines.subList(1, lines.size())) {
-            if (line.isBlank()) {
-                continue;
-            }
-            String[] cells = line.split(String.valueOf(DELIMITER), -1);
+        List<String> header = records.getFirst();
+        for (List<String> cells : records.subList(1, records.size())) {
             Map<String, String> row = new HashMap<>();
-            for (int i = 0; i < header.length; i++) {
-                row.put(header[i], i < cells.length ? cells[i] : "");
+            for (int i = 0; i < header.size(); i++) {
+                row.put(header.get(i), i < cells.size() ? cells.get(i) : "");
             }
             rows.add(row);
         }
         return rows;
+    }
+
+    /** Разбирает текст CSV на записи и поля (конечный автомат по символам). */
+    static List<List<String>> parse(String text) {
+        List<List<String>> records = new ArrayList<>();
+        List<String> record = new ArrayList<>();
+        StringBuilder field = new StringBuilder();
+        boolean quoted = false;
+        boolean fieldStarted = false;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (quoted) {
+                if (c == '"' && i + 1 < text.length() && text.charAt(i + 1) == '"') {
+                    field.append('"');
+                    i++;
+                } else if (c == '"') {
+                    quoted = false;
+                } else {
+                    field.append(c);
+                }
+            } else if (c == '"' && field.isEmpty()) {
+                quoted = true;
+                fieldStarted = true;
+            } else if (c == DELIMITER) {
+                record.add(field.toString());
+                field.setLength(0);
+                fieldStarted = true;
+            } else if (c == '\r' || c == '\n') {
+                if (c == '\r' && i + 1 < text.length() && text.charAt(i + 1) == '\n') {
+                    i++;
+                }
+                endRecord(records, record, field, fieldStarted);
+                record = new ArrayList<>();
+                fieldStarted = false;
+            } else {
+                field.append(c);
+                fieldStarted = true;
+            }
+        }
+        endRecord(records, record, field, fieldStarted);
+        return records;
+    }
+
+    private static void endRecord(List<List<String>> records, List<String> record, StringBuilder field,
+                                  boolean fieldStarted) {
+        if (fieldStarted || !record.isEmpty()) {
+            record.add(field.toString());
+            records.add(record);
+        }
+        field.setLength(0);
     }
 
     /** Записывает строки в файл; порядок столбцов задаёт fields. Строки разделяются CRLF. */

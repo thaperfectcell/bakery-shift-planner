@@ -91,13 +91,17 @@ public class BakeryFloor {
             if (start.isBefore(earliest)) {
                 start = earliest;
             }
+            Shift shift = shiftAtOrAfter(start);
+            if (shift != null && start.isBefore(shift.getStart())) {
+                start = shift.getStart();             // начало попало в перерыв - ждём следующую смену
+            }
             LocalDateTime end = start.plus(batch.bakeDuration());
-            if (end.isAfter(horizonEnd)) {
+            if (shift == null || end.isAfter(horizonEnd)) {
                 queue.add(load);
                 unscheduled.add(new Unscheduled(batch, "не помещается в смены"));
                 continue;
             }
-            batch.assign(load.oven, findShift(start), start, end);
+            batch.assign(load.oven, shift, start, end);
             scheduled.add(batch);
             load.lastGroup = group;
             load.freeAt = end;
@@ -106,8 +110,11 @@ public class BakeryFloor {
         return new Schedule(scheduled, unscheduled);
     }
 
-    /** Смена, в которую попадает момент времени (двоичный поиск по началам смен), или null. */
-    private Shift findShift(LocalDateTime moment) {
+    /**
+     * Смена, в которую попадает момент времени, а если он приходится на перерыв между
+     * сменами - ближайшая следующая смена; null, если позже смен нет (двоичный поиск).
+     */
+    private Shift shiftAtOrAfter(LocalDateTime moment) {
         int lo = 0;
         int hi = shifts.size();
         while (lo < hi) {
@@ -118,8 +125,10 @@ public class BakeryFloor {
                 hi = mid;
             }
         }
-        int i = lo - 1;
-        return i >= 0 && shifts.get(i).contains(moment) ? shifts.get(i) : null;
+        if (lo > 0 && shifts.get(lo - 1).contains(moment)) {
+            return shifts.get(lo - 1);
+        }
+        return lo < shifts.size() ? shifts.get(lo) : null;
     }
 
     public List<Oven> getOvens() { return ovens; }

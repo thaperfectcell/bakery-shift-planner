@@ -8,12 +8,14 @@ from datetime import timedelta
 MAX_LEAD = timedelta(hours=7)
 
 
-def find_shift(shifts, shift_starts, moment):
-    """Смена, в которую попадает момент времени, или None."""
-    i = bisect.bisect_right(shift_starts, moment) - 1
-    if i >= 0 and moment < shifts[i]["end"]:
-        return shifts[i]
-    return None
+def shift_at_or_after(shifts, shift_starts, moment):
+    """Смена, в которую попадает момент времени, а если он приходится на
+    перерыв между сменами - ближайшая следующая смена; None, если позже
+    смен нет."""
+    i = bisect.bisect_right(shift_starts, moment)
+    if i > 0 and moment < shifts[i - 1]["end"]:
+        return shifts[i - 1]
+    return shifts[i] if i < len(shifts) else None
 
 
 def schedule_batches(batches, ovens, shifts, max_lead=MAX_LEAD):
@@ -52,13 +54,15 @@ def schedule_batches(batches, ovens, shifts, max_lead=MAX_LEAD):
         earliest = batch["deadline"] - max_lead
         if start < earliest:
             start = earliest
+        shift = shift_at_or_after(shifts, shift_starts, start)
+        if shift is not None and start < shift["start"]:
+            start = shift["start"]       # начало попало в перерыв - ждём смену
         end = start + timedelta(minutes=batch["bake_minutes"])
-        if end > horizon_end:
+        if shift is None or end > horizon_end:
             heapq.heappush(heap, (ready, oven_id))
             unscheduled.append({**batch, "reason": "не помещается в смены"})
             continue
         late = end > batch["deadline"]
-        shift = find_shift(shifts, shift_starts, start)
         scheduled.append({**batch, "oven_id": oven_id,
                           "shift_id": shift["shift_id"],
                           "start": start, "end": end, "late": late})
